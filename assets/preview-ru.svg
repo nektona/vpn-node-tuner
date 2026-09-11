@@ -19,7 +19,7 @@
 <circle cx="60" cy="18" r="6" fill="#27c93f"/>
 <text x="320" y="22" text-anchor="middle" class="m" style="font-size:12px">vpntune — VPN Node Tuner</text>
 
-<text x="22" y="56" xml:space="preserve"><tspan class="h">⚡ VPN Node Tuner </tspan><tspan class="m">v1.1.0</tspan></text>
+<text x="22" y="56" xml:space="preserve"><tspan class="h">⚡ VPN Node Tuner </tspan><tspan class="m">v1.2.0</tspan></text>
 <line class="r" x1="22" y1="72" x2="618" y2="72"/>
 <text x="22" y="90" xml:space="preserve"><tspan class="g">✅ Оптимизация применена</tspan></text>
 <text x="22" y="111" xml:space="preserve"><tspan class="m">💾 </tspan><tspan class="b">RAM 2048 MB</tspan><tspan class="m">  ·  🧠 </tspan><tspan class="b">bbr + fq</tspan><tspan class="m">  ·  🔌 </tspan><tspan class="b">eth0</tspan></text>

@@ -2,7 +2,7 @@
 
 # ⚡ vpn-node-tuner — network stack tuning for a VPN node
 
-[![Version](https://img.shields.io/badge/vpn--node--tuner-1.1.0-blue.svg)](#-whats-new)
+[![Version](https://img.shields.io/badge/vpn--node--tuner-1.2.0-blue.svg)](#-whats-new)
 [![Shell](https://img.shields.io/badge/bash-4.0%2B-brightgreen.svg)](#-requirements)
 [![OS](https://img.shields.io/badge/Ubuntu_%7C_Debian-supported-purple.svg)](#-requirements)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -21,6 +21,7 @@ Nothing is applied silently: before writing you get a "current → new" table, a
 
 | Version | Highlights |
 |---|---|
+| **1.2.0** | New test mode: a profile or individual parameters are switched on for the test only, the server measures your connection itself, an A/B table and a "revert / keep" choice, auto-revert on Ctrl+C and dropped SSH. All submenus styled like the main one. Fixed the update (the menu stayed on the old version) and invisible prompts in swap, limits and backup restore |
 | **1.1.0** | New main menu: items grouped into sections, clear names, emoji and hints; the header shows tuning status, RAM, the active congestion control and interface |
 | **1.0.0** | First release: 4 RAM profiles, manual mode, A/B experiments, swap, FD limits, diagnostics, backups and rollback, Russian and English menu |
 
@@ -163,18 +164,34 @@ The result is stored in `/etc/vpn-node-tuner/params.conf` and reused by the next
 
 ## 🧪 A/B experiments
 
-Menu item **4 · 🧪 Test mode**. Values are applied at runtime via `sysctl -w`, **nothing is written to disk** and everything resets on reboot — which is exactly how a controversial parameter should be tested.
+Menu item **4 · 🧪 Test mode** compares settings on live traffic. Nothing is written to disk: values are switched on with `sysctl -w` for the duration of the test, and on Ctrl+C or a dropped SSH session the script restores everything itself.
 
-| What to try | When it helps |
+**What you can test:**
+
+- **a whole profile** — any of `1g / 2g / 4g / 8g` against the current settings;
+- **individual parameters** — pick a parameter, then a value from a list; several can be changed at once:
+
+| Parameter | Values |
 |---|---|
-| `fq_codel` instead of `fq` | On some VPS (KVM/VirtIO, especially oversold) pacing in `fq` conflicts with the virtual NIC queues and adds latency |
-| `cubic` instead of `bbr` | If the provider shapes or polices traffic, BBR may not pay off |
-| `tcp_notsent_lowat` = 131072 / 262144 / 32768 | Against bufferbloat. A shorter queue means lower latency under load, but an aggressive value can cut peak speed on a gigabit link |
-| `tcp_mtu_probing` = 1 | If connections establish but large transfers stall — Path MTU Discovery problems |
+| Queue (qdisc) | `fq` · `fq_codel` · `cake` (if the kernel has it) |
+| Congestion control | `bbr` · `cubic` |
+| Buffers (maximum) | 8 · 16 · 32 · 64 MB |
+| `tcp_notsent_lowat` | default · 16 · 32 · 128 · 256 KB |
+| `tcp_slow_start_after_idle` | 0 · 1 |
+| `tcp_mtu_probing` | 0 · 1 · 2 |
 
-The routine is always the same: apply → restart Xray → reconnect the client → measure. A separate item persists a winning combination into `/etc/sysctl.conf`.
+**How a test runs:**
 
-> Do not keep a parameter "because the guide said so". If you cannot see a difference in the measurements, the kernel default is perfectly reasonable too.
+1. **Measurement A** on the current settings: connect the VPN on the client and run any speed test (fast.com, speedtest.net, Waveform Bufferbloat). Enter to start, Enter to stop.
+2. The script switches variant **B** on temporarily and asks you to reconnect the VPN on the client: new parameters only apply to new connections. No Xray restart is needed — other users of the node notice nothing.
+3. **Measurement B** with the same test.
+4. An "A → B" table and a verdict. Enter reverts everything, `y` writes variant B to `/etc/sysctl.conf` (with a backup).
+
+**How the server knows whose connection to measure.** Once a second the script samples `ss -ti` for inbound connections to Xray and groups them by client IP. Whoever is running the speed test moves the most traffic — that IP is the one measured (or set the IP by hand at the start). Xray's outbound connections to websites are ignored. The server computes throughput both ways, idle and loaded RTT, the retransmission rate, and checks that the connection really switched to the new algorithm.
+
+Optionally, after each measurement you can type in the figures from the client's test screen — they land in the same table. Results are saved: **4 · 🧪 → Past test results**.
+
+> Protocols over UDP (Hysteria2, TUIC) cannot be measured this way — and `tcp_*` parameters do not affect them anyway.
 
 ## 💾 Swap and FD limits
 
