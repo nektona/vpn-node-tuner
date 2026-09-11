@@ -10,7 +10,7 @@
 # from grep/sysctl inside a menu must not kill the whole session.
 set -uo pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.1.0"
 REPO_SLUG="nektona/vpn-node-tuner"
 RAW_URL="https://raw.githubusercontent.com/${REPO_SLUG}/main/vpn-node-tuner.sh"
 
@@ -40,11 +40,11 @@ SERVICE_ARG=""
 if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
     C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
     C_RED=$'\033[31m';  C_GRN=$'\033[32m'; C_YLW=$'\033[33m'
-    C_BLU=$'\033[34m';  C_CYA=$'\033[36m'
+    C_BLU=$'\033[34m';  C_CYA=$'\033[36m'; C_MAG=$'\033[35m'
 else
     C_RESET=""; C_BOLD=""; C_DIM=""
     C_RED="";   C_GRN="";  C_YLW=""
-    C_BLU="";   C_CYA=""
+    C_BLU="";   C_CYA="";  C_MAG=""
 fi
 
 # ------------------------------------------------------------------- i18n ---
@@ -65,6 +65,16 @@ hr()   { printf '%s\n' "${C_DIM}────────────────
 title() {
     printf '\n%s\n' "${C_BOLD}${C_BLU}$*${C_RESET}"
     hr
+}
+
+# section <header>              — bold group header inside a menu
+# item <num> <label> [hint]     — aligned menu line, hint is shown in purple
+section() { printf '%s\n' "${C_BOLD}$*${C_RESET}"; }
+
+item() {
+    local hint=""
+    [ -n "${3:-}" ] && hint=" ${C_MAG}$3${C_RESET}"
+    printf '  %s %s%s\n' "${C_BOLD}$(printf '%3s' "$1)")${C_RESET}" "$2" "$hint"
 }
 
 die() { err "$*"; exit 1; }
@@ -653,7 +663,7 @@ wizard_custom() {
         build_params "$PROFILE" || return 1
     fi
 
-    title "$(T 'Ручная настройка значений' 'Manual value editing')"
+    title "✏️  $(T 'Свои значения' 'Custom values')"
     say "$(T 'Enter — принять предложенное, «-» — не задавать этот параметр вообще,' \
              'Enter — accept the suggestion, "-" — do not set this parameter at all,')"
     say "$(T 'или введите своё значение.' 'or type your own value.')"
@@ -794,7 +804,7 @@ ab_set() {
 menu_ab() {
     need_root "ab" || return 1
     while :; do
-        title "$(T 'A/B-эксперименты (без записи в файл)' 'A/B experiments (nothing is written to disk)')"
+        title "🧪 $(T 'Тестовый режим — значения на лету, без записи в файл' 'Test mode — runtime values, nothing written to disk')"
         say "$(T 'Значения применяются на лету и сбросятся при перезагрузке.' \
                  'Values are applied at runtime and reset on reboot.')"
         say "$(T 'Схема: применить → перезапустить Xray → переподключить клиента → замерить.' \
@@ -805,17 +815,21 @@ menu_ab() {
         printf '  %-30s %s\n' "tcp_notsent_lowat"            "$(sysctl_get net.ipv4.tcp_notsent_lowat)"
         printf '  %-30s %s\n' "tcp_mtu_probing"              "$(sysctl_get net.ipv4.tcp_mtu_probing)"
         printf '\n'
-        say "  ${C_BOLD}1)${C_RESET} fq_codel $(T 'вместо' 'instead of') fq   $(T '— если pacing конфликтует с сетевухой VPS' '— if pacing conflicts with the VPS NIC')"
-        say "  ${C_BOLD}2)${C_RESET} fq        $(T 'обратно' 'back')"
-        say "  ${C_BOLD}3)${C_RESET} cubic $(T 'вместо' 'instead of') bbr      $(T '— если у провайдера шейпер/полисер' '— if the provider shapes or polices traffic')"
-        say "  ${C_BOLD}4)${C_RESET} bbr       $(T 'обратно' 'back')"
-        say "  ${C_BOLD}5)${C_RESET} tcp_notsent_lowat = 131072  $(T '(умеренно против bufferbloat)' '(moderate anti-bufferbloat)')"
-        say "  ${C_BOLD}6)${C_RESET} tcp_notsent_lowat = 262144  $(T '(мягче)' '(gentler)')"
-        say "  ${C_BOLD}7)${C_RESET} tcp_notsent_lowat = 32768   $(T '(агрессивно, может срезать пик)' '(aggressive, may cut peak speed)')"
-        say "  ${C_BOLD}8)${C_RESET} tcp_notsent_lowat $(T 'вернуть дефолт ядра' 'restore kernel default')"
-        say "  ${C_BOLD}9)${C_RESET} tcp_mtu_probing = 1         $(T '(если крупные передачи зависают)' '(if large transfers stall)')"
-        say "  ${C_BOLD}10)${C_RESET} $(T 'Закрепить текущие значения в /etc/sysctl.conf' 'Persist current values into /etc/sysctl.conf')"
-        say "  ${C_BOLD}0)${C_RESET} $(T 'Назад' 'Back')"
+        section "🚦 $(T 'Очередь и алгоритм:' 'Queue and congestion control:')"
+        item 1  "🔀 fq_codel $(T 'вместо' 'instead of') fq" "($(T 'если pacing конфликтует с сетевухой VPS' 'if pacing conflicts with the VPS NIC'))"
+        item 2  "↩️  $(T 'Вернуть' 'Back to') fq"
+        item 3  "🔀 cubic $(T 'вместо' 'instead of') bbr" "($(T 'если у провайдера шейпер' 'if the provider shapes traffic'))"
+        item 4  "↩️  $(T 'Вернуть' 'Back to') bbr"
+        section "📉 $(T 'Задержка под нагрузкой:' 'Latency under load:')"
+        item 5  "tcp_notsent_lowat = 131072" "($(T 'умеренно' 'moderate'))"
+        item 6  "tcp_notsent_lowat = 262144" "($(T 'мягко' 'gentle'))"
+        item 7  "tcp_notsent_lowat = 32768" "($(T 'агрессивно, может срезать пик' 'aggressive, may cut peak speed'))"
+        item 8  "↩️  tcp_notsent_lowat — $(T 'дефолт ядра' 'kernel default')"
+        section "📦 MTU:"
+        item 9  "tcp_mtu_probing = 1" "($(T 'если крупные передачи зависают' 'if large transfers stall'))"
+        hr
+        item 10 "💾 $(T 'Закрепить текущие значения в sysctl.conf' 'Persist current values into sysctl.conf')"
+        item 0  "⬅️  $(T 'Назад' 'Back')"
         printf '\n%s ' "$(T 'Выбор:' 'Choice:')"
         local c ifc; _read c || c=""
         ifc="$(default_iface)"
@@ -863,7 +877,7 @@ ab_persist() {
 
 menu_swap() {
     need_root "swap" || return 1
-    title "Swap"
+    title "💾 $(T 'Файл подкачки (swap)' 'Swap file')"
     free -h 2>/dev/null | sed 's/^/  /'
     printf '\n'
     if [ -n "$(swapon --show --noheadings 2>/dev/null)" ]; then
@@ -936,7 +950,7 @@ service_nofile() {
 
 menu_limits() {
     need_root "limits" || return 1
-    title "$(T 'Лимиты файловых дескрипторов' 'File descriptor limits')"
+    title "📂 $(T 'Лимиты соединений (файловые дескрипторы)' 'Connection limits (file descriptors)')"
     say "$(T 'Каждое клиентское соединение — минимум один дескриптор. Дефолт 1024 исчерпывается' \
              'Every client connection is at least one descriptor. The 1024 default runs out')"
     say "$(T 'на десятках активных клиентов, в логах появляется «too many open files».' \
@@ -1077,14 +1091,15 @@ diag_memory() {
 
 menu_diag() {
     while :; do
-        title "$(T 'Диагностика' 'Diagnostics')"
-        say "  ${C_BOLD}1)${C_RESET} $(T 'Полная проверка' 'Full check')"
-        say "  ${C_BOLD}2)${C_RESET} $(T 'Конфликты в /etc/sysctl.d/' 'Conflicts in /etc/sysctl.d/')"
-        say "  ${C_BOLD}3)${C_RESET} $(T 'Слипшиеся строки в sysctl.conf' 'Malformed lines in sysctl.conf')"
-        say "  ${C_BOLD}4)${C_RESET} $(T 'Живые сокеты (bbr / rtt / cwnd)' 'Live sockets (bbr / rtt / cwnd)')"
-        say "  ${C_BOLD}5)${C_RESET} $(T 'Память, TCP-буферы, OOM' 'Memory, TCP buffers, OOM')"
-        say "  ${C_BOLD}6)${C_RESET} $(T 'Перечитать sysctl (sysctl -p) и показать ошибки' 'Re-read sysctl (sysctl -p) and show errors')"
-        say "  ${C_BOLD}0)${C_RESET} $(T 'Назад' 'Back')"
+        title "🩺 $(T 'Диагностика' 'Diagnostics')"
+        item 1 "🔎 $(T 'Полная проверка' 'Full check')"
+        item 2 "🧩 $(T 'Конфликты с другими конфигами' 'Conflicts with other configs')" "(/etc/sysctl.d/)"
+        item 3 "🧷 $(T 'Слипшиеся строки в sysctl.conf' 'Malformed lines in sysctl.conf')"
+        item 4 "📡 $(T 'Живые соединения' 'Live connections')" "(bbr / rtt / cwnd)"
+        item 5 "🧠 $(T 'Память и OOM-killer' 'Memory and OOM killer')"
+        item 6 "🔁 $(T 'Перечитать sysctl и показать ошибки' 'Re-read sysctl and show errors')"
+        hr
+        item 0 "⬅️  $(T 'Назад' 'Back')"
         printf '\n%s ' "$(T 'Выбор:' 'Choice:')"
         local c; _read c || c=""
         case "$c" in
@@ -1106,7 +1121,7 @@ menu_diag() {
 menu_backups() {
     need_root "restore" || return 1
     while :; do
-        title "$(T 'Бэкапы и откат' 'Backups and rollback')"
+        title "♻️  $(T 'Бэкапы и откат' 'Backups & rollback')"
         local list n=0
         list="$(list_backups)"
         if [ -z "$list" ]; then
@@ -1117,10 +1132,11 @@ menu_backups() {
             done
         fi
         printf '\n'
-        say "  ${C_BOLD}1)${C_RESET} $(T 'Восстановить из бэкапа' 'Restore from a backup')"
-        say "  ${C_BOLD}2)${C_RESET} $(T 'Удалить только блок vpn-node-tuner' 'Remove only the vpn-node-tuner block')"
-        say "  ${C_BOLD}3)${C_RESET} $(T 'Показать текущий блок' 'Show the current block')"
-        say "  ${C_BOLD}0)${C_RESET} $(T 'Назад' 'Back')"
+        item 1 "⏪ $(T 'Восстановить из бэкапа' 'Restore from a backup')"
+        item 2 "🧹 $(T 'Удалить только блок vpn-node-tuner' 'Remove only the vpn-node-tuner block')"
+        item 3 "📄 $(T 'Показать текущий блок' 'Show the current block')"
+        hr
+        item 0 "⬅️  $(T 'Назад' 'Back')"
         printf '\n%s ' "$(T 'Выбор:' 'Choice:')"
         local c; _read c || c=""
         case "$c" in
@@ -1182,14 +1198,15 @@ baseline_snapshot() {
 
 menu_baseline() {
     while :; do
-        title "$(T 'Замеры' 'Measurements')"
+        title "📏 $(T 'Замеры до / после' 'Before / after measurements')"
         say "$(T 'Тюнинг без замера «до» бесполезен — вы не отличите улучшение от совпадения.' \
                  'Tuning without a "before" measurement is pointless — you cannot tell improvement from coincidence.')"
         printf '\n'
-        say "  ${C_BOLD}1)${C_RESET} $(T 'Снять снимок состояния ядра (baseline)' 'Take a kernel state snapshot (baseline)')"
-        say "  ${C_BOLD}2)${C_RESET} $(T 'Сравнить с последним снимком' 'Compare with the last snapshot')"
-        say "  ${C_BOLD}3)${C_RESET} $(T 'Команды для замеров с клиента' 'Client-side measurement commands')"
-        say "  ${C_BOLD}0)${C_RESET} $(T 'Назад' 'Back')"
+        item 1 "📸 $(T 'Сделать снимок состояния ядра' 'Take a kernel state snapshot')" "(baseline)"
+        item 2 "🔍 $(T 'Сравнить с последним снимком' 'Compare with the last snapshot')"
+        item 3 "💻 $(T 'Команды для замеров с клиента' 'Client-side measurement commands')"
+        hr
+        item 0 "⬅️  $(T 'Назад' 'Back')"
         printf '\n%s ' "$(T 'Выбор:' 'Choice:')"
         local c; _read c || c=""
         case "$c" in
@@ -1301,22 +1318,20 @@ cmd_update() {
 # ------------------------------------------------------------------- menu ---
 
 banner() {
-    printf '\n'
-    say "${C_BOLD}${C_BLU}  vpn-node-tuner${C_RESET} ${C_DIM}v${SCRIPT_VERSION}${C_RESET}"
-    say "${C_DIM}  $(T 'тюнинг сетевого стека для VPN-нод (Xray / sing-box / 3X-UI / Remnawave)' \
-                       'network stack tuning for VPN nodes (Xray / sing-box / 3X-UI / Remnawave)')${C_RESET}"
-    hr
-    local ram profile applied
+    local ram ifc cc qd
     ram="$(detect_ram_mb)"
-    profile="${PROFILE:-$(profile_for_ram "$ram")}"
+    ifc="$(default_iface)"
+    cc="$(sysctl_get net.ipv4.tcp_congestion_control)"
+    qd="$(sysctl_get net.core.default_qdisc)"
+
+    printf '\n%s\n' "${C_BOLD}⚡ VPN Node Tuner${C_RESET} ${C_DIM}v${SCRIPT_VERSION}${C_RESET}"
+    hr
     if grep -qsF "$BLOCK_START" "$SYSCTL_FILE" 2>/dev/null; then
-        applied="${C_GRN}$(T 'применён' 'applied')${C_RESET}"
+        say "${C_BOLD}${C_GRN}✅ $(T 'Оптимизация применена' 'Optimization applied')${C_RESET}"
     else
-        applied="${C_YLW}$(T 'не применён' 'not applied')${C_RESET}"
+        say "${C_BOLD}${C_YLW}⚠️  $(T 'Оптимизация не применена' 'Optimization not applied')${C_RESET}"
     fi
-    printf '  RAM: %s MB   %s: %s   %s: %s\n' \
-        "$ram" "$(T 'профиль' 'profile')" "${C_BOLD}${profile}${C_RESET}" \
-        "$(T 'тюнинг' 'tuning')" "$applied"
+    say "💾 ${C_BLU}RAM ${ram} MB${C_RESET}  ·  🧠 ${C_BLU}${cc:-?} + ${qd:-?}${C_RESET}  ·  🔌 ${C_BLU}${ifc:-?}${C_RESET}"
     hr
 }
 
@@ -1324,32 +1339,44 @@ main_menu() {
     while :; do
         clear 2>/dev/null || true
         banner
-        say "  ${C_BOLD}1)${C_RESET}  $(T 'Статус — что применено сейчас' 'Status — what is applied right now')"
-        say "  ${C_BOLD}2)${C_RESET}  $(T 'Применить тюнинг (автопрофиль по RAM)' 'Apply tuning (profile auto-detected by RAM)')"
-        say "  ${C_BOLD}3)${C_RESET}  $(T 'Применить тюнинг (ручные значения)' 'Apply tuning (manual values)')"
-        say "  ${C_BOLD}4)${C_RESET}  $(T 'A/B-эксперименты (на лету, без записи)' 'A/B experiments (runtime, nothing written)')"
-        say "  ${C_BOLD}5)${C_RESET}  $(T 'Swap' 'Swap')"
-        say "  ${C_BOLD}6)${C_RESET}  $(T 'Лимиты файловых дескрипторов' 'File descriptor limits')"
-        say "  ${C_BOLD}7)${C_RESET}  $(T 'Диагностика' 'Diagnostics')"
-        say "  ${C_BOLD}8)${C_RESET}  $(T 'Бэкапы и откат' 'Backups and rollback')"
-        say "  ${C_BOLD}9)${C_RESET}  $(T 'Замеры' 'Measurements')"
-        say "  ${C_BOLD}10)${C_RESET} $(T 'Выбрать профиль вручную' 'Choose the profile manually')"
-        say "  ${C_BOLD}11)${C_RESET} $(T 'Язык / Language' 'Language / Язык')"
-        say "  ${C_BOLD}12)${C_RESET} $(T 'Обновить скрипт' 'Update the script')"
-        say "  ${C_BOLD}0)${C_RESET}  $(T 'Выход' 'Exit')"
-        printf '\n%s ' "$(T 'Выбор:' 'Choice:')"
+
+        section "🔧 $(T 'Оптимизация:' 'Tuning:')"
+        item 1  "🚀 $(T 'Применить оптимизацию' 'Apply optimization')" "($(T 'профиль' 'profile') ${PROFILE})"
+        item 2  "✏️  $(T 'Свои значения' 'Custom values')"
+        item 3  "🎚️  $(T 'Сменить профиль RAM' 'Change RAM profile')"
+        item 4  "🧪 $(T 'Тестовый режим' 'Test mode')" "($(T 'без записи в файл' 'nothing written to disk'))"
+
+        section "🖥️  $(T 'Сервер:' 'Server:')"
+        item 5  "💾 $(T 'Файл подкачки' 'Swap file')" "(swap)"
+        item 6  "📂 $(T 'Лимиты соединений' 'Connection limits')" "($(T 'файловые дескрипторы' 'file descriptors'))"
+
+        section "📊 $(T 'Проверка:' 'Monitoring:')"
+        item 7  "📊 $(T 'Текущее состояние' 'Current state')"
+        item 8  "🩺 $(T 'Диагностика' 'Diagnostics')"
+        item 9  "📏 $(T 'Замеры до / после' 'Before / after measurements')"
+
+        section "🛠️  $(T 'Обслуживание:' 'Maintenance:')"
+        item 10 "♻️  $(T 'Бэкапы и откат' 'Backups & rollback')"
+        item 11 "🌐 $(T 'Язык / Language' 'Language / Язык')"
+        item 12 "🔄 $(T 'Проверить обновления' 'Check for updates')"
+
+        hr
+        item 0  "⬅️  $(T 'Выход' 'Exit')"
+        dim "GitHub: ${REPO_SLUG}"
+        printf '%s ' "${C_BOLD}$(T 'Выберите пункт [0-12]:' 'Select option [0-12]:')${C_RESET}"
+
         local c; _read c || c=""
         case "$c" in
-            1)  cmd_status; pause ;;
-            2)  MODE="auto"; apply_tuning; pause ;;
-            3)  wizard_custom; pause ;;
+            1)  MODE="auto"; apply_tuning; pause ;;
+            2)  wizard_custom; pause ;;
+            3)  choose_profile; pause ;;
             4)  menu_ab ;;
             5)  menu_swap; pause ;;
             6)  menu_limits; pause ;;
-            7)  menu_diag ;;
-            8)  menu_backups ;;
+            7)  cmd_status; pause ;;
+            8)  menu_diag ;;
             9)  menu_baseline ;;
-            10) choose_profile; pause ;;
+            10) menu_backups ;;
             11) choose_language ;;
             12) cmd_update; pause ;;
             0|q|exit) printf '\n'; exit 0 ;;
@@ -1359,7 +1386,7 @@ main_menu() {
 }
 
 choose_profile() {
-    title "$(T 'Профиль' 'Profile')"
+    title "🎚️  $(T 'Профиль RAM' 'RAM profile')"
     printf '  %-6s %-12s %-12s %s\n' "" "RAM" "$(T 'буферы' 'buffers')" "somaxconn"
     say "  ${C_BOLD}1)${C_RESET} 1g    < 1.5 GB     16 MB        4096"
     say "  ${C_BOLD}2)${C_RESET} 2g    1.5–3 GB     16 MB        8192"

@@ -2,12 +2,12 @@
 
 # ⚡ vpn-node-tuner — network stack tuning for a VPN node
 
-[![Version](https://img.shields.io/badge/vpn--node--tuner-1.0.0-blue.svg)](#-whats-new)
+[![Version](https://img.shields.io/badge/vpn--node--tuner-1.1.0-blue.svg)](#-whats-new)
 [![Shell](https://img.shields.io/badge/bash-4.0%2B-brightgreen.svg)](#-requirements)
 [![OS](https://img.shields.io/badge/Ubuntu_%7C_Debian-supported-purple.svg)](#-requirements)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-<img src="assets/preview.svg" alt="vpn-node-tuner menu" width="680">
+<img src="assets/preview.svg" alt="vpn-node-tuner menu" width="640">
 
 **[Install](#-install)** · **[Commands](#-commands)** · **[Profiles](#-profiles-by-ram)** · **[What changes](#-what-changes-and-why)** · **[A/B](#-ab-experiments)** · **[Rollback](#-rollback)** · **[Русский](./README_RU.md)**
 
@@ -21,6 +21,7 @@ Nothing is applied silently: before writing you get a "current → new" table, a
 
 | Version | Highlights |
 |---|---|
+| **1.1.0** | New main menu: items grouped into sections, clear names, emoji and hints; the header shows tuning status, RAM, the active congestion control and interface |
 | **1.0.0** | First release: 4 RAM profiles, manual mode, A/B experiments, swap, FD limits, diagnostics, backups and rollback, Russian and English menu |
 
 ## ⚡ Install
@@ -90,7 +91,7 @@ vpntune            # interactive menu
 
 ## 🎛 Profiles by RAM
 
-The profile is detected automatically from `MemTotal`; you can override it in the menu (item 10) or with `--profile`.
+The profile is detected automatically from `MemTotal`; you can override it in the menu (item 3, "🎚️ Change RAM profile") or with `--profile`.
 
 | Profile | RAM | Buffers (max) | `somaxconn` / `syn_backlog` | `netdev_max_backlog` |
 |---|---|---|---|---|
@@ -152,7 +153,7 @@ If `bbr` is unavailable in the kernel, the script says so and offers `cubic` —
 
 ## ✍️ Manual values
 
-Menu item **3** walks through every parameter, showing the current value, the profile suggestion and a one-line explanation of what the parameter does.
+Menu item **2 · ✏️ Custom values** walks through every parameter, showing the current value, the profile suggestion and a one-line explanation of what the parameter does.
 
 - `Enter` — accept the suggestion
 - `-` — **do not set** this parameter at all (the kernel default stays)
@@ -162,7 +163,7 @@ The result is stored in `/etc/vpn-node-tuner/params.conf` and reused by the next
 
 ## 🧪 A/B experiments
 
-Menu item **4**. Values are applied at runtime via `sysctl -w`, **nothing is written to disk** and everything resets on reboot — which is exactly how a controversial parameter should be tested.
+Menu item **4 · 🧪 Test mode**. Values are applied at runtime via `sysctl -w`, **nothing is written to disk** and everything resets on reboot — which is exactly how a controversial parameter should be tested.
 
 | What to try | When it helps |
 |---|---|
@@ -185,7 +186,7 @@ The routine is always the same: apply → restart Xray → reconnect the client 
 
 ## ♻️ Rollback
 
-A backup `/etc/sysctl.conf.bak-YYYY-MM-DD-HHMMSS` is taken before every write (the last 10 are kept). Menu item **8**:
+A backup `/etc/sysctl.conf.bak-YYYY-MM-DD-HHMMSS` is taken before every write (the last 10 are kept). Menu item **10 · ♻️ Backups & rollback**:
 
 - restore `/etc/sysctl.conf` from any backup;
 - remove **only** the `vpn-node-tuner` block, leaving the rest of the file alone;
@@ -199,7 +200,7 @@ Kernel values stay active until reboot — a `reboot` is needed to reset the qdi
 
 ## 📊 How to measure
 
-Tuning without a baseline is pointless: you cannot tell an improvement from a coincidence. Menu item **9** takes a kernel state snapshot and prints the commands to run **from the client**:
+Tuning without a baseline is pointless: you cannot tell an improvement from a coincidence. Menu item **9 · 📏 Before / after measurements** takes a kernel state snapshot and prints the commands to run **from the client**:
 
 ```bash
 ping -c 100 SERVER_IP | tail -3         # watch mdev — that is what you feel as stutter
@@ -230,15 +231,15 @@ Everything goes into `/etc/sysctl.conf` as a single block between markers:
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| A parameter does not show up in `sysctl <name>` | The line ran into a comment | Item 7 → "Malformed lines" |
+| A parameter does not show up in `sysctl <name>` | The line ran into a comment | Item 8 · 🩺 Diagnostics → "Malformed lines" |
 | `sysctl: cannot stat /proc/sys/...` | The parameter is absent from this kernel, or the server is an LXC/OpenVZ container | The script drops such keys itself and lists them |
 | Xray killed by the OOM killer | Buffers too large for this RAM and/or no swap | A smaller profile (`--profile 1g`) + swap (item 5) |
 | Bufferbloat grade C/D | Bloated transmit queues | Item 4: `fq_codel`, then `tcp_notsent_lowat = 131072` |
 | Ping got worse after `fq` | Pacing conflicts with the VPS virtual NIC | Item 4: `fq_codel` |
 | Speed did not improve at all | Capped by the VPS link or by CPU on encryption | Run `top` under load: if one core sits at 100 %, sysctl is not the problem |
 | `too many open files` in the log | Service FD limit | Item 6 |
-| Stutter after a pause in the player | TCP window reset while idle | Verify `tcp_slow_start_after_idle = 0` is actually applied (item 1) |
-| `tc qdisc show` reports `pfifo_fast` | Interface came up before `default_qdisc` was set | Item 2 attaches the qdisc right away; otherwise `reboot` |
+| Stutter after a pause in the player | TCP window reset while idle | Verify `tcp_slow_start_after_idle = 0` is actually applied (item 7 · 📊 Current state) |
+| `tc qdisc show` reports `pfifo_fast` | Interface came up before `default_qdisc` was set | Item 1 attaches the qdisc right away; otherwise `reboot` |
 
 ## 🚫 What this script will NOT do
 
