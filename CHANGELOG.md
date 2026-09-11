@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-09-11
+
+### Fixed
+
+- «0 — Назад» в выборе профиля RAM и в истории тестового режима возвращал в меню только после лишнего нажатия Enter.
+- Неверный номер в подменю диагностики, бэкапов и замеров больше не требует Enter — меню просто показывается заново, как в главном.
+
 ## [1.2.0] — 2026-09-11
 
 ### Added
@@ -58,7 +65,8 @@
 - Неинтерактивный режим: `--yes`, `--profile`, `--lang`, `--size`, `--service`.
 - Установка как команда `vpntune`, самообновление через `vpntune update`.
 
-[Unreleased]: https://github.com/nektona/vpn-node-tuner/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/nektona/vpn-node-tuner/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/nektona/vpn-node-tuner/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/nektona/vpn-node-tuner/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nektona/vpn-node-tuner/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nektona/vpn-node-tuner/releases/tag/v1.0.0

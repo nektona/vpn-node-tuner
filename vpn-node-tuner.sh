@@ -10,7 +10,7 @@
 # from grep/sysctl inside a menu must not kill the whole session.
 set -uo pipefail
 
-SCRIPT_VERSION="1.2.0"
+SCRIPT_VERSION="1.2.1"
 REPO_SLUG="nektona/vpn-node-tuner"
 RAW_URL="https://raw.githubusercontent.com/${REPO_SLUG}/main/vpn-node-tuner.sh"
 
@@ -137,6 +137,11 @@ pause() {
     _read _ || true
     printf '\n'
 }
+
+# Menus return BACK when the user picked "0 — Back": nothing new is on the
+# screen, so the caller must not ask for an extra Enter.
+BACK=10
+pause_unless_back() { [ "${1:-0}" -eq "$BACK" ] || pause; }
 
 # confirm <question> [default:y|n]
 confirm() {
@@ -1347,9 +1352,10 @@ EOF
     hr
     item 0 "⬅️  $(T 'Назад' 'Back')"
     choose "$n"
-    case "$CHOICE" in ''|0|*[!0-9]*) return 0 ;; esac
+    case "$CHOICE" in ''|0|*[!0-9]*) return "$BACK" ;; esac
     f="$(printf '%s\n' "$files" | sed -n "${CHOICE}p")"
-    [ -n "$f" ] && { printf '\n'; sed '1d' "$f"; }
+    [ -n "$f" ] || return "$BACK"
+    printf '\n'; sed '1d' "$f"
     return 0
 }
 
@@ -1372,7 +1378,7 @@ menu_test() {
         case "$CHOICE" in
             1) test_pick_profile ;;
             2) test_pick_params ;;
-            3) test_history; pause ;;
+            3) test_history; pause_unless_back $? ;;
             0|q) return 0 ;;
             *) warn "$(T 'Неизвестный пункт' 'Unknown item')"; sleep 1 ;;
         esac
@@ -1720,7 +1726,7 @@ menu_diag() {
             5) diag_memory ;;
             6) title "sysctl -p"; sysctl -p "$SYSCTL_FILE" 2>&1 | sed 's/^/  /' ;;
             0|q) return 0 ;;
-            *) warn "$(T 'Неизвестный пункт' 'Unknown item')" ;;
+            *) warn "$(T 'Неизвестный пункт' 'Unknown item')"; sleep 1; continue ;;
         esac
         pause
     done
@@ -1783,7 +1789,7 @@ EOF
                     'index($0,s){f=1} f{print "  " $0} index($0,e){f=0}' "$SYSCTL_FILE" 2>/dev/null
                 ;;
             0|q) return 0 ;;
-            *) warn "$(T 'Неизвестный пункт' 'Unknown item')" ;;
+            *) warn "$(T 'Неизвестный пункт' 'Unknown item')"; sleep 1; continue ;;
         esac
         pause
     done
@@ -1865,9 +1871,9 @@ menu_baseline() {
   # Bufferbloat: waveform.com/tools/bufferbloat  ($(T 'цель — A или A+' 'target — A or A+'))
 EOF
                 ;;
-            4) test_history ;;
+            4) test_history; pause_unless_back $?; continue ;;
             0|q) return 0 ;;
-            *) warn "$(T 'Неизвестный пункт' 'Unknown item')" ;;
+            *) warn "$(T 'Неизвестный пункт' 'Unknown item')"; sleep 1; continue ;;
         esac
         pause
     done
@@ -2024,7 +2030,7 @@ main_menu() {
         case "$c" in
             1)  MODE="auto"; screen "🚀 $(T 'Применить оптимизацию' 'Apply optimization')"; apply_tuning; pause ;;
             2)  wizard_custom; pause ;;
-            3)  choose_profile; pause ;;
+            3)  choose_profile; pause_unless_back $? ;;
             4)  menu_test ;;
             5)  menu_swap; pause ;;
             6)  menu_limits; pause ;;
@@ -2053,7 +2059,7 @@ choose_profile() {
         3) PROFILE="4g" ;;
         4) PROFILE="8g" ;;
         5) PROFILE="$(profile_for_ram "$(detect_ram_mb)")" ;;
-        *) return 0 ;;
+        *) return "$BACK" ;;
     esac
     MODE="auto"
     save_config

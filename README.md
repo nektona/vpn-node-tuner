@@ -2,7 +2,7 @@
 
 # ⚡ vpn-node-tuner — network stack tuning for a VPN node
 
-[![Version](https://img.shields.io/badge/vpn--node--tuner-1.2.0-blue.svg)](#-whats-new)
+[![Version](https://img.shields.io/badge/vpn--node--tuner-1.2.1-blue.svg)](#-whats-new)
 [![Shell](https://img.shields.io/badge/bash-4.0%2B-brightgreen.svg)](#-requirements)
 [![OS](https://img.shields.io/badge/Ubuntu_%7C_Debian-supported-purple.svg)](#-requirements)
 [![Transports](https://img.shields.io/badge/TCP_%7C_XHTTP_%7C_gRPC_%7C_WS-supported-orange.svg)](#-xray-transports)
@@ -22,6 +22,7 @@ Nothing is applied silently: before writing you get a "current → new" table, a
 
 | Version | Highlights |
 |---|---|
+| **1.2.1** | "0 — Back" in the profile picker and in test history returns straight away, without an extra Enter; a wrong number in a submenu no longer asks for Enter either |
 | **1.2.0** | New test mode: a profile or individual parameters are switched on for the test only, the server measures your connection itself, an A/B table and a "revert / keep" choice, auto-revert on Ctrl+C and dropped SSH. All submenus styled like the main one. Fixed the update (the menu stayed on the old version) and invisible prompts in swap, limits and backup restore |
 | **1.1.0** | New main menu: items grouped into sections, clear names, emoji and hints; the header shows tuning status, RAM, the active congestion control and interface |
 | **1.0.0** | First release: 4 RAM profiles, manual mode, A/B experiments, swap, FD limits, diagnostics, backups and rollback, Russian and English menu |
