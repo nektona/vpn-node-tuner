@@ -5,15 +5,16 @@
 [![Version](https://img.shields.io/badge/vpn--node--tuner-1.2.0-blue.svg)](#-whats-new)
 [![Shell](https://img.shields.io/badge/bash-4.0%2B-brightgreen.svg)](#-requirements)
 [![OS](https://img.shields.io/badge/Ubuntu_%7C_Debian-supported-purple.svg)](#-requirements)
+[![Transports](https://img.shields.io/badge/TCP_%7C_XHTTP_%7C_gRPC_%7C_WS-supported-orange.svg)](#-xray-transports)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 <img src="assets/preview.svg" alt="vpn-node-tuner menu" width="640">
 
-**[Install](#-install)** · **[Commands](#-commands)** · **[Profiles](#-profiles-by-ram)** · **[What changes](#-what-changes-and-why)** · **[A/B](#-ab-experiments)** · **[Rollback](#-rollback)** · **[Русский](./README_RU.md)**
+**[Install](#-install)** · **[Commands](#-commands)** · **[Profiles](#-profiles-by-ram)** · **[Transports](#-xray-transports)** · **[What changes](#-what-changes-and-why)** · **[A/B](#-ab-experiments)** · **[Rollback](#-rollback)** · **[Русский](./README_RU.md)**
 
 </div>
 
-An interactive script that puts `/etc/sysctl.conf` in order for a **VPN node** (Xray / sing-box / 3X-UI / Remnawave): enables **BBR + fq**, sizes buffers and queues **to the server's RAM**, removes outbound port exhaustion and kills the ramp-up stall after a pause in a video player. Plus everything tuning usually falls apart without: swap, file descriptor limits, backups, rollback and diagnostics.
+An interactive script that puts `/etc/sysctl.conf` in order for a **VPN node** (Xray / sing-box / 3X-UI / Remnawave) with a **TCP-based transport** — TCP/RAW (including VLESS + Reality + Vision), XHTTP, gRPC, WebSocket, with or without Mux: enables **BBR + fq**, sizes buffers and queues **to the server's RAM**, removes outbound port exhaustion and kills the ramp-up stall after a pause in a video player. Plus everything tuning usually falls apart without: swap, file descriptor limits, backups, rollback and diagnostics.
 
 Nothing is applied silently: before writing you get a "current → new" table, a backup is taken, and keys the kernel refuses are removed from the config automatically.
 
@@ -105,6 +106,33 @@ All other parameters are identical across profiles.
 
 > **Why 16 MB and not 64 on a small server.** 16 MB is enough for one client to saturate a gigabit link even at RTT ≈ 120 ms (BDP ≈ 1 Gbit/s × 0.12 s ≈ 15 MB). 64 MB on a 1 GB server is a direct path to the OOM killer taking out Xray at peak load. The maximum is not reserved upfront, but with many active connections memory goes fast.
 
+## 🔌 Xray transports
+
+The script tunes the server's TCP stack, so it works with **any TCP-based Xray transport** — including the most common one, **TCP/RAW (VLESS + Reality + Vision)**. Xray does not forward packets like a tunnel: it accepts the client's TCP connection itself and opens its own TCP connection to the website, and both are handled by your server's kernel.
+
+```
+client ──TCP──▶ Xray on the server ──TCP──▶ website
+   BBR, buffers, queues             ports, tw_reuse, BBR
+```
+
+| Transport | Client → server connections | What matters most |
+|---|---|---|
+| **TCP / RAW without Mux** (including Reality + Vision) | Many: a separate one per application connection | `bbr` + `fq`, the `somaxconn` / `syn_backlog` queues, FD limits (item 6) |
+| **WebSocket without Mux** | Many, same as TCP / RAW | Same as TCP / RAW |
+| **TCP / RAW with Mux**, **XHTTP**, **gRPC**, **HTTP/2** | One or a few per device, streams travel inside | `bbr` + `fq`, buffers and `tcp_slow_start_after_idle = 0`: one connection carries all the traffic and stays open for hours with pauses |
+| **UDP**: Hysteria2, TUIC, mKCP, QUIC | — | `tcp_*` parameters do not apply; only `rmem_max` / `wmem_max` matter |
+
+- Connections **from Xray to websites** are always separate per stream — Mux is unpacked on the server. That is why ports, `tw_reuse` and `fin_timeout` matter with any transport.
+- BBR speeds up what the server **sends**, i.e. downloads to the client. Upload speed from the client is governed by the congestion control on the client itself.
+
+**How to tell which case you have.** On the server, while several websites are open through the VPN on one device (replace `443` with your inbound port):
+
+```bash
+ss -tn state established '( sport = :443 )' | tail -n +2 | wc -l
+```
+
+Dozens of connections — no Mux. One or two per device — Mux or a multiplexing transport.
+
 ## 🔧 What changes, and why
 
 ### Congestion control and queueing
@@ -129,7 +157,7 @@ If `bbr` is unavailable in the kernel, the script says so and offers `cubic` —
 
 | Parameter | Value | What it does |
 |---|---|---|
-| `net.ipv4.tcp_slow_start_after_idle` | `0` | Does not reset the congestion window after an idle period. For multiplexed gRPC / HTTP-2 / XHTTP connections that stay open for hours, this is what removes the ramp-up stall when Reels/TikTok resume after a pause |
+| `net.ipv4.tcp_slow_start_after_idle` | `0` | Does not reset the congestion window after an idle period. A connection that sat without traffic (a paused player, an open tab) carries on at its previous speed instead of ramping up from zero — this is what removes the stall when Reels/TikTok resume after a pause. Most noticeable with Mux, gRPC and XHTTP, where one connection stays open for hours |
 
 ### Queues and ports
 
